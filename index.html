@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 旅行攻略生成器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 40px 16px;
+    color: #333;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    padding: 40px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: #444;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+
+  .form-group { margin-bottom: 20px; }
+
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #444;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 15px;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input:focus { border-color: #667eea; }
+
+  .date-row { display: flex; align-items: center; gap: 8px; }
+  .date-row input[type="date"] { flex: 1; }
+  .date-sep { color: #888; }
+
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .mode-option {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #f5f5fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0;
+  }
+  .mode-option:has(input:checked) {
+    background: #eef0ff;
+    border-color: #667eea;
+    color: #5558d6;
+  }
+  .mode-option input { accent-color: #667eea; }
+
+  .days-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 6px;
+    min-height: 16px;
+  }
+
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f5f5fa;
+    border: 2px solid #e0e0e0;
+    border-radius: 999px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    font-size: 14px;
+  }
+
+  .checkbox-item input { accent-color: #667eea; }
+
+  .checkbox-item:has(input:checked) {
+    background: #eef0ff;
+    border-color: #667eea;
+    color: #5558d6;
+  }
+
+  button {
+    width: 100%;
+    padding: 15px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    margin-top: 8px;
+  }
+
+  button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.45);
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .result {
+    margin-top: 36px;
+    border-top: 2px dashed #e0e0e0;
+    padding-top: 24px;
+  }
+
+  .result h2 { font-size: 20px; margin-bottom: 16px; color: #444; }
+
+  .result-content {
+    background: #fafaff;
+    border-radius: 12px;
+    padding: 20px;
+    white-space: pre-wrap;
+    line-height: 1.8;
+    font-size: 15px;
+    min-height: 60px;
+  }
+
+  .loading { color: #888; font-style: italic; }
+
+  .error { color: #d33; }
+
+  /* Markdown 渲染样式 */
+  .markdown h1, .markdown h2, .markdown h3 {
+    margin: 18px 0 10px;
+    line-height: 1.3;
+  }
+  .markdown h1 { font-size: 22px; border-bottom: 2px solid #667eea; padding-bottom: 6px; }
+  .markdown h2 { font-size: 19px; color: #5558d6; }
+  .markdown h3 { font-size: 17px; color: #444; }
+  .markdown p { margin: 8px 0; }
+  .markdown ul, .markdown ol { margin: 8px 0 8px 20px; }
+  .markdown li { margin: 4px 0; }
+  .markdown strong { color: #333; }
+  .markdown hr { border: 0; border-top: 1px dashed #ddd; margin: 16px 0; }
+  .markdown table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 14px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .markdown th, .markdown td {
+    border: 1px solid #e5e7eb;
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .markdown th { background: #eef0ff; color: #5558d6; font-weight: 700; }
+  .markdown tr:nth-child(even) td { background: #fafaff; }
+
+  /* 目的地图片 Hero */
+  .hero {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    background: linear-gradient(135deg, #eef0ff, #fafaff);
+    padding: 14px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+  }
+  .hero img {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  .hero-meta { flex: 1; min-width: 0; }
+  .hero-meta h3 { font-size: 18px; margin-bottom: 6px; color: #5558d6; }
+  .hero-meta p { font-size: 13px; color: #555; line-height: 1.7; margin: 0; }
+  @media (max-width: 480px) {
+    .hero { flex-direction: column; }
+    .hero img { width: 100%; height: 180px; }
+  }
+</style>
+</head>
+<body>
+  <!-- 引入 Markdown 解析库（marked.js） -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>AI 旅行攻略生成器</h1>
+    <p class="subtitle">填写旅行信息，一键生成专属攻略</p>
+
+    <form id="travelForm">
+      <div class="form-group">
+        <label for="origin">出发地</label>
+        <input type="text" id="origin" placeholder="例如：北京" required />
+      </div>
+
+      <div class="form-group">
+        <label for="destination">目的地</label>
+        <input type="text" id="destination" placeholder="例如：成都" required />
+      </div>
+
+      <div class="form-group">
+        <label for="tripScope">出行范围</label>
+        <select id="tripScope">
+          <option value="domestic" selected>🇨🇳 国内旅游</option>
+          <option value="international">🌏 国际旅游</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="currencyGroup" style="display:none">
+        <label for="currency">目的地货币代码</label>
+        <input type="text" id="currency" placeholder="例如：JPY / USD / EUR" />
+      </div>
+
+      <div class="form-group">
+        <label>行程时长</label>
+        <div class="mode-toggle">
+          <label class="mode-option">
+            <input type="radio" name="durationMode" value="date" checked />
+            <span>按日期选择</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="durationMode" value="days" />
+            <span>直接填天数</span>
+          </label>
+        </div>
+
+        <div class="date-row" id="dateModeBox">
+          <input type="date" id="startDate" />
+          <span class="date-sep">至</span>
+          <input type="date" id="endDate" />
+        </div>
+
+        <input type="number" id="days" min="1" placeholder="例如：5" style="display:none" />
+
+        <p class="days-hint" id="daysHint">选择出发和返程日期，将自动计算游玩天数</p>
+      </div>
+
+      <div class="form-group">
+        <label for="budget">预算（人民币元）</label>
+        <input type="number" id="budget" min="0" placeholder="例如：5000" required />
+        <p class="days-hint" id="currencyHint"></p>
+      </div>
+
+      <div class="form-group">
+        <label>偏好（可多选）</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="美食探店" />美食探店</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="文艺复古" />文艺复古</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="自然风光" />自然风光</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="亲子游" />亲子游</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="历史文化" />历史文化</label>
+          <label class="checkbox-item"><input type="checkbox" name="preference" value="网红打卡" />网红打卡</label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>优先关注（可多选，至少选 1 项）</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="住宿环境" />住宿环境</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="美食体验" />美食体验</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="景点深度" />景点深度</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="交通便利" />交通便利</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="购物娱乐" />购物娱乐</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="夜生活" />夜生活</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="轻松慢节奏" />轻松慢节奏</label>
+          <label class="checkbox-item"><input type="checkbox" name="priority" value="高性价比" />性价比优先</label>
+        </div>
+      </div>
+
+      <button type="submit" id="generateBtn">生成攻略</button>
+    </form>
+
+    <div class="result">
+      <h2>AI 生成的攻略</h2>
+      <div class="result-content" id="resultContent">攻略将在这里显示。</div>
+    </div>
+  </div>
+
+<script>
+  const API_URL = "https://api.deepseek.com/chat/completions";
+  const API_KEY = 'sk-298221a4513c4833ac6bd22e67051e36'; // ← 在这里填入你的 DeepSeek API Key
+
+  const form = document.getElementById("travelForm");
+  const btn = document.getElementById("generateBtn");
+  const resultContent = document.getElementById("resultContent");
+  const startDateEl = document.getElementById("startDate");
+  const endDateEl = document.getElementById("endDate");
+  const daysHint = document.getElementById("daysHint");
+  const tripScopeEl = document.getElementById("tripScope");
+  const currencyGroup = document.getElementById("currencyGroup");
+  const currencyHint = document.getElementById("currencyHint");
+
+  // 根据出发/返程日期自动计算天数
+  function updateDaysHint() {
+    if (startDateEl.value && endDateEl.value) {
+      const d = Math.round((new Date(endDateEl.value) - new Date(startDateEl.value)) / 86400000);
+      daysHint.textContent = d >= 1
+        ? "共 " + d + " 天行程"
+        : "⚠️ 返程日期需晚于出发日期";
+    } else {
+      daysHint.textContent = "选择出发和返程日期，将自动计算游玩天数";
+    }
+  }
+  startDateEl.addEventListener("change", updateDaysHint);
+  endDateEl.addEventListener("change", updateDaysHint);
+
+  // 切换「按日期」/「按天数」两种模式
+  const daysInput = document.getElementById("days");
+  const dateModeBox = document.getElementById("dateModeBox");
+  function getDurationMode() {
+    const checked = document.querySelector('input[name="durationMode"]:checked');
+    return checked ? checked.value : "date";
+  }
+  function applyDurationMode() {
+    const mode = getDurationMode();
+    dateModeBox.style.display = mode === "date" ? "flex" : "none";
+    daysInput.style.display = mode === "days" ? "" : "none";
+    if (mode === "days") {
+      daysHint.textContent = "填写计划游玩的天数";
+    } else {
+      updateDaysHint();
+    }
+  }
+  document.querySelectorAll('input[name="durationMode"]').forEach(radio => {
+    radio.addEventListener("change", applyDurationMode);
+  });
+
+  // 切换国内/国际，显示货币输入框
+  tripScopeEl.addEventListener("change", function () {
+    currencyGroup.style.display = this.value === "international" ? "" : "none";
+    currencyHint.textContent = "";
+  });
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    if (API_KEY === 'API_KEY') {
+      resultContent.className = "result-content error";
+      resultContent.textContent = "请先在代码中把 API_KEY 替换为你的 DeepSeek API Key。";
+      return;
+    }
+
+    const destination = document.getElementById("destination").value.trim();
+    const origin = document.getElementById("origin").value.trim();
+    const tripScope = tripScopeEl.value;
+    const budget = document.getElementById("budget").value.trim();
+
+    // 按模式读取行程时长
+    let days, dateInfoText;
+    if (getDurationMode() === "date") {
+      const startDate = startDateEl.value;
+      const endDate = endDateEl.value;
+      if (!startDate || !endDate) {
+        alert("请选择出发和返程日期，或切换为「直接填天数」模式");
+        return;
+      }
+      days = Math.round((new Date(endDate) - new Date(startDate)) / 86400000);
+      if (days < 1) {
+        alert("返程日期必须晚于出发日期");
+        return;
+      }
+      dateInfoText = startDate + " 至 " + endDate + "（共 " + days + " 天）";
+    } else {
+      days = parseInt(daysInput.value, 10);
+      if (!days || days < 1) {
+        alert("请填写有效的游玩天数");
+        return;
+      }
+      dateInfoText = "共 " + days + " 天（用户未指定具体日期，可按常规季节建议）";
+    }
+    const preferences = Array.from(
+      document.querySelectorAll('input[name="preference"]:checked')
+    ).map(cb => cb.value);
+    const priorities = Array.from(
+      document.querySelectorAll('input[name="priority"]:checked')
+    ).map(cb => cb.value);
+
+    if (priorities.length === 0) {
+      alert("请至少选择一项「优先关注」");
+      btn.disabled = false;
+      btn.textContent = "生成攻略";
+      return;
+    }
+
+    const prefText = preferences.length ? preferences.join("、") : "无特别偏好";
+    const priorityText = priorities.join("、");
+
+    // 国际旅游：实时汇率换算（免 Key 公开接口 open.er-api.com）
+    let localBudgetText = "";
+    if (tripScope === "international") {
+      const currency = document.getElementById("currency").value.trim().toUpperCase();
+      if (!currency) {
+        alert("国际旅游请填写目的地货币代码（如 JPY / USD / EUR）");
+        return;
+      }
+      try {
+        const rateResp = await fetch("https://open.er-api.com/v6/latest/CNY");
+        const rateData = await rateResp.json();
+        const rate = rateData.rates && rateData.rates[currency];
+        if (rate) {
+          const localAmount = Math.round(Number(budget) * rate);
+          localBudgetText = "（实时汇率 1 CNY ≈ " + rate + " " + currency +
+            "，约合 " + localAmount.toLocaleString() + " " + currency + "）";
+          currencyHint.textContent = "≈ " + localAmount.toLocaleString() + " " + currency +
+            "（1 CNY ≈ " + rate + " " + currency + "）";
+        } else {
+          currencyHint.textContent = "未查询到 " + currency + " 的汇率，将仅以人民币规划";
+        }
+      } catch (_) {
+        currencyHint.textContent = "汇率查询失败，将仅以人民币规划";
+      }
+    }
+
+    const systemPrompt =
+      "你是一位资深旅行规划师。输出必须严格遵循以下规范：\n" +
+      "1. 整体使用 Markdown 格式，必须包含以下固定板块（顺序不得更改）：\n" +
+      "   - 顶部 1 行 H1 标题 + 1 行斜体摘要\n" +
+      "   - ## 🗺️ 行程概览  → 用 Markdown 表格列出：天数 / 主题 / 核心景点\n" +
+      "   - ## 📅 每日安排  → 每天用 ### Day N，列出「上午 / 中午 / 下午 / 晚上」四个要点\n" +
+      "   - ## 🍜 美食推荐  → 单独板块，用 Markdown 表格列出：店名 / 推荐菜 / 位置；至少 3 条\n" +
+      "   - ## 🏨 住宿建议  → 2-4 条要点，按区域/天数给出\n" +
+      "   - ## 🚆 交通指南  → 要点形式，3-5 条；必须包含从「出发地→目的地」的往返大交通方案（高铁/飞机/自驾的大致票价与时长）\n" +
+      "   - ## 💰 预算分配  → 必须包含两部分：\n" +
+      "       a) 总览表格（类别 / 占比 / 金额），类别建议：住宿、餐饮、交通（含往返大交通）、景点门票、其他；总金额必须等于用户给定预算；\n" +
+      "       b) **📋 费用明细** —— 每一类下面列出明细项并做「加法拆解」，例如：\n" +
+      "          「餐饮（合计 500 元）: 早餐 ~25×5=125；正餐 ~80×4=320；下午茶/小吃 ~55；合计 500。」\n" +
+      "          「住宿（合计 1500 元）: Day1-2 经济型酒店 300×2=600；Day3 民宿 400；Day4 连锁酒店 500；合计 1500。」\n" +
+      "          「交通（合计 800 元）: 出发地→目的地高铁二等座 ~400×1=400；返程 ~400；市内地铁/公交 ~10×5=50；合计 850→按 800 预留并注明浮动。」\n" +
+      "       所有数字加总后必须与该分类金额、且所有分类加总后必须等于总预算，允许 ±2% 浮动。\n" +
+      "   - ## 💡 实用贴士  → 要点形式，不超过 5 条\n" +
+      "2. 语言精炼，避免长段落和重复描述，全文控制在 1000 字以内（费用明细部分不计入字数）。\n" +
+      "3. 严禁使用代码块（```）包裹整体输出；除表格外尽量用要点，少用整段文字。\n" +
+      "4. 根据用户「优先关注」项合理倾斜：选了「住宿环境」则推荐中高端住宿；选「美食体验」则餐饮占比上调；选「景点深度」则门票/讲解占比上调；以此类推。\n" +
+      "5. 结合用户给定的出行日期判断季节、淡旺季与节假日（如春节、黄金周、樱花季、雨季等），行程与价格估算必须符合该时段实际情况，旺季住宿/机票上浮要体现在预算中。\n" +
+      "6. 若为国际旅游：需包含护照/签证/入境注意事项；费用明细除人民币外，同时用目的地货币标注关键金额（如门票、餐饮单价），并给出换汇建议。";
+
+    const userPrompt =
+      "请按以下需求生成攻略：\n" +
+      "出发地：" + origin + "\n" +
+      "目的地：" + destination + "\n" +
+      "出行范围：" + (tripScope === "international" ? "国际旅游" : "国内旅游") + "\n" +
+      "出行日期：" + dateInfoText + "\n" +
+      "总预算：" + budget + " 元" + localBudgetText + "\n" +
+      "旅行偏好：" + prefText + "\n" +
+      "优先关注：" + priorityText + "\n\n" +
+      "严格按系统提示中的板块和顺序输出 Markdown；预算必须严格合计等于总预算。";
+
+    btn.disabled = true;
+    btn.textContent = "正在生成…";
+    resultContent.className = "result-content loading";
+    resultContent.textContent = "AI 正在思考中，请稍候…";
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + API_KEY
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error("API 请求失败（" + response.status + "）：" + errText);
+      }
+
+      const data = await response.json();
+      const answer = data.choices && data.choices[0] && data.choices[0].message
+        ? data.choices[0].message.content
+        : "";
+
+      if (!answer) {
+        throw new Error("未收到有效回复。");
+      }
+
+      // 渲染：顶部目的地图片(从 Wikipedia 搜索) + 下方 Markdown 内容
+      resultContent.className = "result-content";
+      resultContent.innerHTML = "";
+
+      const mdWrap = document.createElement("div");
+      mdWrap.className = "markdown";
+      mdWrap.innerHTML = marked.parse(answer);
+      resultContent.appendChild(mdWrap);
+
+      // 从 Wikipedia 拉取目的地首图与简介（无需 API Key）
+      try {
+        const wikiUrl =
+          "https://zh.wikipedia.org/api/rest_v1/page/summary/" +
+          encodeURIComponent(destination);
+
+        const wikiResp = await fetch(wikiUrl);
+        if (wikiResp.ok) {
+          const wiki = await wikiResp.json();
+          if (wiki.type !== "disambiguation" && (wiki.thumbnail || wiki.extract)) {
+            const hero = document.createElement("div");
+            hero.className = "hero";
+
+            if (wiki.thumbnail && wiki.thumbnail.source) {
+              const img = document.createElement("img");
+              img.src = wiki.thumbnail.source;
+              img.alt = destination;
+              img.loading = "lazy";
+              img.onerror = () => img.remove();
+              hero.appendChild(img);
+            }
+
+            const meta = document.createElement("div");
+            meta.className = "hero-meta";
+            const h = document.createElement("h3");
+            h.textContent = "📍 " + destination;
+            meta.appendChild(h);
+            if (wiki.extract) {
+              const p = document.createElement("p");
+              p.textContent = wiki.extract;
+              meta.appendChild(p);
+            }
+            hero.appendChild(meta);
+
+            resultContent.insertBefore(hero, mdWrap);
+          }
+        }
+      } catch (_) {
+        // 图片加载失败不影响正文
+      }
+    } catch (err) {
+      resultContent.className = "result-content error";
+      resultContent.textContent = "生成失败：" + err.message +
+        "\n请检查 API Key 是否正确、网络是否可用。";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "生成攻略";
+    }
+  });
+</script>
+</body>
+</html>
